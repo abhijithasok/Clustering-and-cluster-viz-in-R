@@ -1,0 +1,144 @@
+att<-read.csv("/Users/abhijithasok/Downloads/Cluster data.csv",header=T,stringsAsFactors = FALSE)
+att<-na.omit(att)
+#att2 <- sapply(att[,-1], function(x) as.numeric(as.character(x))) 
+#att2<-data.frame(att2)
+#att2<-as.numeric(att[,-1])
+#att2<-att[,-1]
+att2<-att[-c(48,65),]
+att2<-scale(att2[,-1])
+#att2<-data.frame(att2)
+#att[,1]
+#str(att)
+wss <- (nrow(att2)-1)*sum(apply(att2,2,var))
+for (i in 1:15) wss[i] <- (1-((kmeans(att2, centers=i)$tot.withinss)/(kmeans(att2, centers=i)$totss)))
+
+test<-as.data.frame(wss)
+test$clusternumber<-seq(1,15,by=1)
+library(plyr)
+test<-mutate(test,ratio=(wss/(1-wss)))
+
+plot(1:15, test$ratio, type="b", xlab="Number of Clusters",
+     ylab="Within groups sum of squares")
+
+# K-Means Cluster Analysis
+fit <- kmeans(att2, 4, nstart=5) # 5 cluster solution
+rsq<-(fit$totss-fit$tot.withinss)/fit$totss
+# get cluster means 
+aggregate(att2,by=list(fit$cluster),FUN=mean)
+# append cluster assignment
+att2 <- data.frame(att2, fit$cluster)
+#nrow(att2[,att2$fit.cluster==1])
+att2<-cbind("Client.Name"=att$Client.Name,att2)
+#rename(att2, c("fit$cluster"="Cluster.Number"))
+names(att2)[names(att2)=="fit.cluster"]<-"Cluster.Number"
+#names(att2)[names(att2)=="Cluter.Number"]<-"Client.Name"
+
+library(fpc)
+wss <- (nrow(att2)-1)*sum(apply(att2,2,var))
+for (i in 1:15) wss[i] <- (1-((pam(att2)$tot.withinss)/(pam(att2, centers=i)$totss)))
+
+test<-as.data.frame(wss)
+test$clusternumber<-seq(1,15,by=1)
+library(plyr)
+test<-mutate(test,ratio=(wss/(1-wss)))
+
+plot(1:15, test$ratio, type="b", xlab="Number of Clusters",
+     ylab="Within groups sum of squares")
+
+att2<-att2[-68,]
+
+# Cluster Analysis
+fit <- pamk(att2, krange=1:15, criterion="asw",usepam=TRUE,scaling=FALSE) # 5 cluster solution
+rsq<-(fit$totss-fit$tot.withinss)/fit$totss
+# get cluster means 
+aggregate(att2,by=list(fit$cluster),FUN=mean)
+# append cluster assignment
+att2 <- data.frame(att2, fit$cluster)
+#nrow(att2[,att2$fit.cluster==1])
+
+wss <- (nrow(att2)-1)*sum(apply(att2,2,var))
+for (i in 1:15) wss[i] <- (1-((kmeans(att2, centers=i)$tot.withinss)/(kmeans(att2, centers=i)$totss)))
+
+test<-as.data.frame(wss)
+test$clusternumber<-seq(1,15,by=1)
+library(plyr)
+test<-mutate(test,ratio=(wss/(1-wss)))
+
+plot(1:15, test$ratio, type="b", xlab="Number of Clusters",
+     ylab="Within groups sum of squares")
+
+# Cluster Analysis
+att2<-data.frame(att2)
+library(fpc)
+#fit <- clusterboot(att2, B=20,bootmethod="boot", clustermethod = kmeansCBI, krange=3, seed=12345) # 5 cluster solution
+fit <- clusterboot(att2, B=20,bootmethod="boot", method="ward.D",clustermethod = hclusttreeCBI, cut=3, k=3, seed=12345) # 5 cluster solution
+rsq<-(fit$totss-fit$tot.withinss)/fit$totss
+# get cluster means 
+aggregate(att2,by=list(fit$cluster),FUN=mean)
+# append cluster assignment
+att2 <- data.frame(att2, fit$partition)
+att2<-cbind(att[-c(48,65),".Name"],att2)
+names(att2)[names(att2)=="fit.partition"]<-"Cluster.Number"
+
+att<-data.frame(att[-c(48,65),], fit$partition)
+#nrow(att2[,att2$fit.cluster==1])
+
+att2<-cbind(att$Client.Name,att2)
+names(att2)[names(att2)=="fit.partition"]<-"Cluster.Number"
+names(att2)[1]<-"Name"
+
+write.csv(att,"clusterboot 2 hclusttree.csv",row.names = FALSE)
+
+library(caret)
+varImp(fit)
+
+library(Matrix)
+cholatt<-chol(att)
+
+pcaatt<-prcomp(att[,-1],center=TRUE,scale=TRUE)
+pcaatt<-as.matrix(pcaatt)
+plot(pcaatt)
+summary(pcaatt)
+loadings(pcaatt)
+
+pcadata<-pcaatt[2]
+pcadata<-data.frame(pcadata)
+fit <- clusterboot(pcadata[,-1], B=20,bootmethod="subset", clustermethod = kmeansCBI, krange=3, seed=12345)
+aggregate(att2,by=list(fit$cluster),FUN=mean)
+# append cluster assignment
+att2 <- data.frame(att2, fit$partition)
+
+#Cluster Plotting
+
+plotdataatt<-att2
+
+plotdataatt<-read.csv("/Users/abhijithasok/Downloads/data for cluster plot.csv", header=TRUE, stringsAsFactors = FALSE)
+library(ggplot2)
+plotdataatt$Cluster.Number<-as.factor(plotdataatt$Cluster.Number)
+str(plotdataatt)
+ggplot(plotdataatt,aes(x=Total.Core.Spend,y=Number.of.Phones,color=plotdataatt$Cluster.Number)) + geom_point(size=5) + geom_text(aes(label=plotdataatt$Client.Name), size=4, hjust=0.5,vjust=-1)
+#text(plotdataatt$Total.Core.Spend,plotdataatt$Number.of.Phones, labels=plotdataatt$Client.Name, cex=0.7)
+
+clusterfit<-lm(Number.of.Phones~Total.Core.Spend,data=plotdataatt)
+par(cex=.8)
+plot(plotdataatt$Total.Core.Spend,plotdataatt$Number.of.Phones)
+abline(clusterfit)
+dev.off()
+
+#plotdataatt1<-plotdataatt[,which(plotdataatt$Cluster.Number==1)]
+plotdataatt1<-subset(plotdataatt, Cluster.Number==1)
+plotdataatt2<-subset(plotdataatt, Cluster.Number==2)
+plotdataatt3<-subset(plotdataatt, Cluster.Number==3)
+
+clusterfit1<-lm(Number.of.Phones~Total.Core.Spend,data=plotdataatt1)
+clusterfit2<-lm(Number.of.Phones~Total.Core.Spend,data=plotdataatt2)
+clusterfit3<-lm(Number.of.Phones~Total.Core.Spend,data=plotdataatt3)
+
+setwd("/Users/abhijithasok/Downloads/")
+jpeg("Total Core Spend vs Core spend per phone.jpeg", width=1000, height=1000, quality=100)
+ggplot(plotdataatt,aes(y=Total.Core.Spend,x=(Total.Core.Spend/Number.of.Phones),color=plotdataatt$Cluster.Number)) + geom_point(size=5) + geom_text(aes(label=plotdataatt$Client.Name), size=4, hjust=0.5,vjust=-1) #+geom_abline(intercept=1.600207851, slope=0.001288634) + geom_abline(intercept=3.066664e+02, slope=8.964556e-04, col="green") + geom_abline(intercept=1.11e+02, slope=1.03e-03, col="red") + geom_abline(intercept=1.515e+04, slope=-6.673e-05, col="blue") + geom_point(aes(x=9278571.333,y=14532.66667), shape="square")
+dev.off()
+
+jpeg("cluster plot without labels.jpeg", width=1000, height=1000, quality=100)
+ggplot(plotdataatt,aes(x=Total.Core.Spend,y=Number.of.Phones,color=plotdataatt$Cluster.Number)) + geom_point(size=5) #+ geom_text(aes(label=plotdataatt$Client.Name), size=4, hjust=0.5,vjust=-1)
+dev.off()
